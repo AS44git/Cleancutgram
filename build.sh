@@ -190,10 +190,13 @@ if [ -f "$REPORT" ] && command -v python3 >/dev/null 2>&1; then
     python3 - "$REPORT" <<'EOF' || true
 import json, sys
 report = json.load(open(sys.argv[1]))
+# Newer Morphe CLIs list patch names as plain strings; older ones as objects.
+def name(p): return p if isinstance(p, str) else p.get("name")
 for patch in report.get("appliedPatches", []):
-    print(f"    ok   {patch.get('name')}")
+    print(f"    ok   {name(patch)}")
 for patch in report.get("failedPatches", []):
-    print(f"    FAIL {patch.get('name')}: {patch.get('exception') or patch.get('error') or ''}")
+    detail = "" if isinstance(patch, str) else (patch.get("exception") or patch.get("error") or "")
+    print(f"    FAIL {name(patch)}: {detail}")
 EOF
 fi
 

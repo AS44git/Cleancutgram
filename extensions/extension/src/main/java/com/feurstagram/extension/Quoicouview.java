@@ -1,6 +1,7 @@
 package com.feurstagram.extension;
 
 import android.content.Context;
+import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -452,6 +453,8 @@ public final class Quoicouview {
 
     /** The stories row currently laid out in the inbox list, if any. */
     private static StoriesTrayRow.Host attachedRow() {
+        StoriesTrayRow.Host pinned = pinnedRow();
+        if (pinned != null) return pinned;
         ViewGroup list = inboxList();
         if (list == null) return null;
         for (int i = 0; i < list.getChildCount(); i++) {
@@ -459,6 +462,93 @@ public final class Quoicouview {
             if (child instanceof StoriesTrayRow.Host) return (StoriesTrayRow.Host) child;
         }
         return null;
+    }
+
+    // --- The Compose inbox --------------------------------------------------------
+
+    /** The stories row pinned above a Compose inbox, while there is one. */
+    private static WeakReference<StoriesTrayRow.Host> sPinnedRow = new WeakReference<>(null);
+
+    /** The inbox content the pinned row pushes down, to undo it. */
+    private static WeakReference<View> sPushedContent = new WeakReference<>(null);
+
+    /**
+     * Some accounts get a Jetpack Compose inbox (seen on 454): the classic
+     * {@code inbox_refreshable_thread_list_recyclerview} stays in the layout but
+     * GONE and empty, and the chats are drawn by a ComposeView next to it, inside
+     * the same {@code refreshable_container}. A Compose list has no
+     * IgRecyclerViewAdapter, so {@link #onListUpdate} never sees it and the
+     * stories row never gets a place: the tray stays on the hidden feed
+     * (upstream issue #156).
+     *
+     * For that inbox the row is pinned instead: a {@link StoriesTrayRow.Host} at
+     * the top of the inbox's {@code list_container}, with the list's container
+     * pushed down by the row's height. Nothing of Compose is touched. Returns
+     * null on the classic inbox, where the row lives in the list as before.
+     */
+    private static StoriesTrayRow.Host pinnedRow() {
+        ViewGroup root = sRoot.get();
+        if (root == null) return null;
+        Context context = root.getContext();
+        int legacyId = Hiders.resolveId(context, "inbox_refreshable_thread_list_recyclerview");
+        int containerId = Hiders.resolveId(context, "list_container");
+        if (legacyId == 0 || containerId == 0) return null;
+        View legacy = root.getRootView().findViewById(legacyId);
+        if (legacy == null) return null;
+        if (legacy.getVisibility() == View.VISIBLE) {
+            unpin(); // the classic inbox is in use: its list holds the row
+            return null;
+        }
+        // The child of list_container that holds the (hidden) classic list and
+        // the Compose list: what the pinned row sits on top of.
+        ViewGroup container = null;
+        View content = null;
+        for (View view = legacy; view.getParent() instanceof View; view = (View) view.getParent()) {
+            View parent = (View) view.getParent();
+            if (parent.getId() == containerId && parent instanceof ViewGroup) {
+                container = (ViewGroup) parent;
+                content = view;
+                break;
+            }
+        }
+        if (container == null) return null;
+        StoriesTrayRow.Host host = sPinnedRow.get();
+        if (host != null && host.getParent() == container) return host;
+        if (host != null && host.getParent() instanceof ViewGroup) {
+            ((ViewGroup) host.getParent()).removeView(host);
+        }
+        host = new StoriesTrayRow.Host(container.getContext());
+        final View pushed = content;
+        host.addOnLayoutChangeListener((v, left, top, right, bottom, oldLeft, oldTop, oldRight, oldBottom) ->
+                pushDown(pushed, bottom - top));
+        container.addView(host, new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP));
+        sPinnedRow = new WeakReference<>(host);
+        sPushedContent = new WeakReference<>(content);
+        android.util.Log.i(LOG_TAG, "Compose inbox: stories row pinned above the list");
+        return host;
+    }
+
+    /** Give the inbox's list a top margin of the pinned row's height. */
+    private static void pushDown(View content, int height) {
+        if (content == null) return;
+        ViewGroup.LayoutParams params = content.getLayoutParams();
+        if (!(params instanceof ViewGroup.MarginLayoutParams)) return;
+        ViewGroup.MarginLayoutParams margins = (ViewGroup.MarginLayoutParams) params;
+        if (margins.topMargin == height) return;
+        margins.topMargin = height;
+        // Called from a layout pass: request the new layout after it.
+        content.post(() -> content.setLayoutParams(margins));
+    }
+
+    /** Take the pinned row away again (the classic inbox came back). */
+    private static void unpin() {
+        StoriesTrayRow.Host host = sPinnedRow.get();
+        if (host == null) return;
+        if (host.getParent() instanceof ViewGroup) ((ViewGroup) host.getParent()).removeView(host);
+        pushDown(sPushedContent.get(), 0);
+        sPinnedRow = new WeakReference<>(null);
+        sPushedContent = new WeakReference<>(null);
     }
 
     private static ViewGroup inboxList() {
