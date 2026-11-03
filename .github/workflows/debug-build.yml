@@ -1,0 +1,83 @@
+# Builds a DEBUG APK for testing on a phone over USB: the Debug bridge is on, so
+# the settings and the view tree can be driven with `adb shell am broadcast`
+# (see extensions/.../DebugBridge.java). Never publish these.
+#
+# The APK is signed with a throwaway key and uploaded as a workflow artifact
+# (not a release). Because the key changes every run, installing it over a
+# previous build needs `adb uninstall` first.
+
+name: Debug build
+
+on:
+  workflow_dispatch:
+    inputs:
+      stock_apk:
+        description: "Stock Instagram APK: release:NAME (an .apk/.apkm on that release, drafts too) or a direct https:// link"
+        required: true
+        default: "release:stock-apk"
+      clone:
+        description: "Build the clone (installs next to the normal Instagram)"
+        type: boolean
+        default: true
+      morphe_cli_version:
+        description: "Morphe CLI release tag"
+        required: false
+        default: "v1.20.0"
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android build tools
+        run: sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Fetch the Morphe CLI and APKEditor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p tools
+          gh release download "${{ inputs.morphe_cli_version }}" -R MorpheApp/morphe-cli -p 'morphe-*.jar' -D tools/
+          gh release download V1.4.9 -R REAndroid/APKEditor -p 'APKEditor-1.4.9.jar' -D tools/
+          ls -l tools
+
+      - name: Fetch the stock Instagram APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          file="$(bash .github/scripts/fetch-stock-apk.sh "${{ inputs.stock_apk }}")"
+          echo "STOCK_APK=$file" >> "$GITHUB_ENV"
+
+      - name: Build the debug APK
+        env:
+          GITHUB_TOKEN: ${{ secrets.GPR_TOKEN || secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+        run: |
+          chmod +x build.sh gradlew
+          args=("$STOCK_APK" --debug)
+          [ "${{ inputs.clone }}" = "true" ] && args+=(--clone)
+          ./build.sh "${args[@]}"
+          name="$(echo "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')-debug-$(git rev-parse --short HEAD)"
+          [ "${{ inputs.clone }}" = "true" ] && name="$name-clone"
+          mkdir -p dist
+          mv feurstagram.apk "dist/$name.apk"
+          cp build/patch-report.json dist/ 2>/dev/null || true
+          ls -l dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: debug-apk
+          path: dist/
+          retention-days: 7

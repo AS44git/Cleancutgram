@@ -1,7 +1,12 @@
-Feurstagram
-===========
+Cleancutgram
+============
+
+Cleancutgram is a modified version of Feurstagram
+(https://github.com/jean-voila/FeurStagram), forked at v454-0-0-13-77.
+The changes are listed in CHANGELOG.md.
 
 Copyright (C) Feurstagram contributors.
+Copyright (C) Cleancutgram contributors (modifications).
 
 Licensed under the GNU General Public License v3.0 (see LICENSE).
 

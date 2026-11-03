@@ -12,21 +12,21 @@ public final class Brand {
     private Brand() {}
 
     /** Shown in the settings title, dialogs and notifications. */
-    public static final String APP_NAME = "Feurstagram";
+    public static final String APP_NAME = "IG";
 
     /**
      * The GitHub repository ("owner/name") whose releases the updater checks and
      * downloads from. Until it is set to a real repository, update checks are
      * skipped instead of failing (see {@link #hasUpdateRepo}).
      */
-    public static final String GITHUB_REPO = "CHANGE-ME/CHANGE-ME";
+    public static final String GITHUB_REPO = "AS44git/Cleancutgram";
 
     /**
      * The package suffix of the side-by-side clone build (ClonePatch's default
      * package is "com.instagram.android" + this). The updater uses it to pick
      * the "-clone.apk" release asset for clone installs.
      */
-    public static final String CLONE_PACKAGE_SUFFIX = ".feurstagram";
+    public static final String CLONE_PACKAGE_SUFFIX = ".cleancutgram";
 
     /**
      * This fork's own release number, appended to Instagram's version: Instagram

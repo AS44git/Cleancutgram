@@ -20,9 +20,10 @@ name: Build and release
 on:
   workflow_dispatch:
     inputs:
-      instagram_apk_url:
-        description: "Direct download link to the stock Instagram APK (.apk or .apkm, arm64-v8a)"
+      stock_apk:
+        description: "Stock Instagram APK: release:NAME (an .apk/.apkm on that release, drafts too) or a direct https:// link"
         required: true
+        default: "release:stock-apk"
       notes:
         description: "Release notes (shown in the app's update and What's new screens)"
         required: false
@@ -65,18 +66,12 @@ jobs:
           gh release download V1.4.9 -R REAndroid/APKEditor -p 'APKEditor-1.4.9.jar' -D tools/
           ls -l tools
 
-      - name: Download the stock Instagram APK
+      - name: Fetch the stock Instagram APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          url="${{ inputs.instagram_apk_url }}"
-          case "$url" in
-            *.apkm*) file=instagram.apkm ;;
-            *.xapk*) file=instagram.xapk ;;
-            *.apks*) file=instagram.apks ;;
-            *) file=instagram.apk ;;
-          esac
-          curl -fL --retry 3 -o "$file" "$url"
+          file="$(bash .github/scripts/fetch-stock-apk.sh "${{ inputs.stock_apk }}")"
           echo "STOCK_APK=$file" >> "$GITHUB_ENV"
-          ls -l "$file"
 
       - name: Restore the signing keystore
         env:
@@ -115,8 +110,7 @@ jobs:
           if [ -z "$revision" ]; then echo "::error::could not read REVISION from Brand.java"; exit 1; fi
           tag="v${version//./-}-$revision"
           echo "TAG=$tag" >> "$GITHUB_ENV"
-          name="$(grep -o 'APP_NAME = "[^"]*"' "$brand" | cut -d'"' -f2)"
-          slug="$(echo "$name" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-*$//')"
+          slug="$(echo "${GITHUB_REPOSITORY#*/}" | tr '[:upper:]' '[:lower:]')"
           # Asset names: the updater takes the ".apk" one for classic installs and
           # the "-clone.apk" one for clone installs.
           mv dist/app.apk "dist/$slug-$tag.apk"
