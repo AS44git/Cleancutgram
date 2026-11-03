@@ -4,7 +4,32 @@ All notable changes to Feurstagram should be documented in this file.
 
 ## Unreleased
 
-Nothing yet.
+Fork of Feurstagram v454-0-0-13-77.
+
+### Fixed
+- **Quoicouview: stories missing from Messages** (upstream #156). The stories row
+  borrows the feed's own `reels_tray_container`, but the cold-start jump to
+  Messages could happen before the feed built it, and the off-screen feed page
+  was then never laid out, so the row stayed empty. The tab pager now keeps every
+  page alive (`setOffscreenPageLimit`), and the jump to Messages waits for the
+  tray to exist (at most 2.5 s). Possibly also helps upstream #162 (tray not
+  refreshing), to be verified on device.
+
+### Changed
+- **The permanent lock freezes Quoicouview mode.** With the lock on, a
+  Quoicouview mode that was on can no longer be turned off, so Home stays off.
+- **Updater points at this fork** (`Brand.GITHUB_REPO`), and versions carry the
+  fork's own revision (`Brand.REVISION`): Instagram 454.0.0.13.77 at revision 1
+  is released as `v454-0-0-13-77-1`, so fixes on the same Instagram base are
+  offered as updates. Update checks are skipped until the repository is set.
+- App name in the settings, dialogs and notifications comes from `Brand.APP_NAME`.
+- New GitHub Actions workflow, *Build and release*, that builds the classic and
+  clone APKs from a stock Instagram APK and publishes them as a release.
+
+### Removed
+- First-run onboarding coach mark, the "follow the official account" card, the
+  Quoicouview intro card (and the *Quoicouview assets* patch with its screenshot).
+- *Force SDR display* patch and its "Force dark" setting.
 
 ## v454-0-0-13-77
 

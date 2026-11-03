@@ -334,9 +334,21 @@ public final class Hiders {
      */
     static final class LandingWatcher implements ViewTreeObserver.OnGlobalLayoutListener {
         private static final int MAX_ATTEMPTS = 30;
+
+        /**
+         * Quoicouview: how long the jump to Messages may wait for the feed to
+         * build its stories tray. The stories row borrows that tray, and once the
+         * app is on Messages the off-screen feed may never build it (upstream
+         * issue #156), so the jump holds off until it exists, but never longer
+         * than this: a missing tray must not keep the app on the hidden feed.
+         */
+        private static final long TRAY_WAIT_MS = 2500;
+
         private ViewGroup container;
         private boolean done;
         private int attempts;
+        /** When the wait for the tray began, or 0 when not waiting. */
+        private long trayWaitStart;
 
         LandingWatcher(ViewGroup container) {
             this.container = container;
@@ -399,8 +411,27 @@ public final class Hiders {
                 return; // not laid out yet; retry up to the bound
             }
 
-            view.performClick();
+            if ("direct_tab".equals(target) && Config.isQuoicouviewEnabled()
+                    && !Quoicouview.isTrayBuilt(root)) {
+                long now = android.os.SystemClock.uptimeMillis();
+                if (trayWaitStart == 0) {
+                    trayWaitStart = now;
+                    // Layout passes may stop while nothing changes: make sure the
+                    // jump still happens once the wait is over.
+                    final View tab = view;
+                    root.postDelayed(() -> land(tab), TRAY_WAIT_MS);
+                }
+                if (now - trayWaitStart < TRAY_WAIT_MS) return; // next layout pass checks again
+            }
+
+            land(view);
+        }
+
+        /** Open the landing tab, once. */
+        private void land(View tab) {
+            if (done) return;
             done = true;
+            tab.performClick();
             detach();
         }
 

@@ -128,6 +128,19 @@ public final class Quoicouview {
     /** The list field of the list-update class, found once. */
     private static Field sUpdateList;
 
+    /**
+     * How many pages the tab pager keeps built on each side of the current one.
+     * Enough to cover every tab, so the hidden feed page (and the stories tray
+     * it owns) is never torn down or left un-laid-out while Messages is shown.
+     */
+    private static final int KEEP_PAGES_ALIVE = 6;
+
+    /** Logcat tag: {@code adb logcat -s Quoicouview}. */
+    private static final String LOG_TAG = "Quoicouview";
+
+    /** The pager whose page limit was raised, so it is only done once per pager. */
+    private static WeakReference<View> sKeptAlivePager = new WeakReference<>(null);
+
     /** Install on the tab-bar root; inert unless the mode is on. */
     static void install(ViewGroup root) {
         if (root == null || !Config.isQuoicouviewEnabled()) return;
@@ -138,6 +151,7 @@ public final class Quoicouview {
             @Override
             public void onGlobalLayout() {
                 try {
+                    keepFeedPageAlive();
                     adoptTray(null);
                     adoptHeart();
                 } catch (Throwable ignored) {
@@ -145,6 +159,47 @@ public final class Quoicouview {
                 }
             }
         });
+    }
+
+    /**
+     * The stories row borrows the feed's own tray, so the feed page must stay
+     * built while Messages is on screen. The tab pager is a ViewPager2, which by
+     * default only keeps the pages next to the current one: from Messages, the
+     * feed page can be torn down (or never laid out on a cold start that jumps
+     * straight to Messages), and then there is no tray to borrow and the row
+     * stays empty (upstream issue #156). Raising the pager's offscreen page limit
+     * keeps every tab's page built and laid out, so the feed keeps its tray alive
+     * and refreshed. The method is looked up by name because Instagram's androidx
+     * classes are obfuscated; if it is missing, nothing changes.
+     */
+    private static void keepFeedPageAlive() {
+        ViewGroup root = sRoot.get();
+        if (root == null) return;
+        Context context = root.getContext();
+        int pagerId = Hiders.resolveId(context, "swipeable_tab_view_pager");
+        if (pagerId == 0) return;
+        View pager = root.getRootView().findViewById(pagerId);
+        if (pager == null || pager == sKeptAlivePager.get()) return;
+        sKeptAlivePager = new WeakReference<>(pager);
+        try {
+            pager.getClass().getMethod("setOffscreenPageLimit", int.class).invoke(pager, KEEP_PAGES_ALIVE);
+            android.util.Log.i(LOG_TAG, "tab pager keeps " + KEEP_PAGES_ALIVE + " pages alive");
+        } catch (Throwable t) {
+            // no such method on this build: the landing wait still helps
+            android.util.Log.w(LOG_TAG, "could not raise the tab pager's page limit: " + t);
+        }
+    }
+
+    /**
+     * Whether the feed has built its stories tray yet (in the feed page, or
+     * already moved into the stories row). The cold-start jump to Messages
+     * waits for this, see {@link Hiders.LandingWatcher}.
+     */
+    static boolean isTrayBuilt(View anyView) {
+        if (anyView == null) return false;
+        if (sTray.get() != null) return true;
+        int id = Hiders.resolveId(anyView.getContext(), "reels_tray_container");
+        return id != 0 && anyView.getRootView().findViewById(id) != null;
     }
 
     // --- Called from Instagram's code (Quoicouview patch) -------------------------

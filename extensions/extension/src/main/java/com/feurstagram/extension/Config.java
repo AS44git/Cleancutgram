@@ -79,8 +79,17 @@ public final class Config {
      * the lock — issue #93.
      */
     public static boolean isLockable(String key) {
-        return key != null && (key.startsWith("block_") || key.startsWith("nav_show_"));
+        return key != null && (key.startsWith("block_") || key.startsWith("nav_show_")
+                || QUOICOUVIEW_KEY.equals(key));
     }
+
+    /**
+     * Quoicouview mode's key. Lockable: with the permanent lock on, a Quoicouview
+     * mode that was on stays on, so Home stays off for good. Its polarity is the
+     * {@code block_*} one (true = Home hidden), which {@link #hidesSurface} already
+     * gives any key that is not {@code nav_show_*}.
+     */
+    public static final String QUOICOUVIEW_KEY = "quoicouview_mode";
 
     /**
      * Whether this value leaves the surface hidden. The two families store
@@ -106,14 +115,6 @@ public final class Config {
     public static boolean isAutoUpdateEnabled() {
         return getBlocked("auto_update", true);
     }
-
-    /**
-     * Whether Instagram's window is pinned to SDR (COLOR_MODE_DEFAULT) instead of
-     * the HDR mode Instagram forces on some accounts. On by default: the HDR
-     * window mode only lifts the black floor of the dark UI (washed-out fond) with
-     * no visible benefit. Not a block_* surface, so the permanent lock ignores it.
-     */
-    public static boolean isForceSdr() { return getBlocked("force_sdr", true); }
 
     /**
      * Whether the home feed is restricted to accounts you follow (chronological
@@ -186,32 +187,18 @@ public final class Config {
      * with the stories tray on top of it, and Home is off. While it is on, Home
      * counts as hidden, Messages as shown and the landing page is Messages,
      * whatever their own settings say; those are kept and apply again once the
-     * mode is turned off. Not a block_* surface, so the permanent lock does not
-     * freeze it, but it cannot bring back a Messages icon the lock keeps hidden:
-     * the mode simply does not apply then. See {@link Quoicouview}.
+     * mode is turned off. The permanent lock freezes it on once it was on (see
+     * {@link #isLockable}), but it cannot bring back a Messages icon the lock keeps
+     * hidden: the mode simply does not apply then. See {@link Quoicouview}.
      */
     public static boolean isQuoicouviewEnabled() {
-        return getBlocked("quoicouview_mode", false) && isQuoicouviewAvailable();
+        return getBlocked(QUOICOUVIEW_KEY, false) && isQuoicouviewAvailable();
     }
 
     /** False while the permanent lock keeps the Messages icon hidden. */
     public static boolean isQuoicouviewAvailable() {
         return !(isHardcoreMode() && !getBlocked("nav_show_direct", true));
     }
-
-    /** Whether the card presenting Quoicouview mode has been shown on this installation. */
-    public static boolean isQuoicouviewIntroShown() { return getBlocked("quoicouview_intro_shown", false); }
-
-    public static void setQuoicouviewIntroShown() { setBlocked("quoicouview_intro_shown", true); }
-
-    /**
-     * Whether the first-run coach mark (long-press Home to open settings) has
-     * already been shown on this installation. Set once, never cleared: the guide
-     * is a one-time thing, not a setting.
-     */
-    public static boolean isOnboardingDone() { return getBlocked("onboarding_done", false); }
-
-    public static void setOnboardingDone() { setBlocked("onboarding_done", true); }
 
     /** Navigation-bar icons, with the default the getters use (true = shown). */
     private static final String[] NAV_KEYS = {
@@ -285,6 +272,7 @@ public final class Config {
         for (String key : NAV_KEYS) {
             baseline.put(key, getBlocked(key, navDefault(key)));
         }
+        baseline.put(QUOICOUVIEW_KEY, getBlocked(QUOICOUVIEW_KEY, false));
         sBaseline = baseline;
     }
 
@@ -346,22 +334,6 @@ public final class Config {
         SharedPreferences prefs = prefs();
         if (prefs == null || value == null) return;
         prefs.edit().putString("last_seen_version", value).apply();
-    }
-
-    /**
-     * The package {@code lastUpdateTime} the "follow the official account" card was
-     * last shown for, or 0 if never. A different value on launch means the app was
-     * installed or updated since, so the card is due again.
-     */
-    public static long getFollowPromptShownFor() {
-        SharedPreferences prefs = prefs();
-        return prefs == null ? 0L : prefs.getLong("follow_prompt_update_time", 0L);
-    }
-
-    public static void setFollowPromptShownFor(long updateTime) {
-        SharedPreferences prefs = prefs();
-        if (prefs == null) return;
-        prefs.edit().putLong("follow_prompt_update_time", updateTime).apply();
     }
 
     public static void setNeedsRestart() { sNeedsRestart = true; }

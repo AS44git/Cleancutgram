@@ -74,11 +74,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class UpdateChecker implements Runnable {
 
-    private static final String REPO = "jean-voila/Feurstagram";
+    private static final String REPO = Brand.GITHUB_REPO;
     private static final String LATEST_API = "https://api.github.com/repos/" + REPO + "/releases/latest";
     private static final String LATEST_PAGE = "https://github.com/" + REPO + "/releases/latest";
     private static final String RELEASE_BY_TAG = "https://api.github.com/repos/" + REPO + "/releases/tags/";
-    private static final String USER_AGENT = "Feurstagram-UpdateCheck";
+    private static final String USER_AGENT = Brand.APP_NAME + "-UpdateCheck";
 
     /** Action prefix for the per-session PackageInstaller status callback. */
     private static final String INSTALL_ACTION = "com.feurstagram.extension.INSTALL_STATUS";
@@ -120,7 +120,8 @@ public final class UpdateChecker implements Runnable {
     }
 
     private static void checkAutomatically(Activity activity) {
-        if (!Config.isAutoUpdateEnabled() || !automaticCheckRunning.compareAndSet(false, true)) return;
+        if (!Brand.hasUpdateRepo() || !Config.isAutoUpdateEnabled()
+                || !automaticCheckRunning.compareAndSet(false, true)) return;
         if (DebugBridge.isNetworkTraceEnabled()) Log.i("FeurUpdate", "automatic check started");
         new Thread(new UpdateChecker(activity, false), "FeurStagram-update-check").start();
     }
@@ -173,6 +174,10 @@ public final class UpdateChecker implements Runnable {
      */
     public static void checkNow(Context context) {
         if (context == null) return;
+        if (!Brand.hasUpdateRepo()) {
+            Toast.makeText(context, "No update repository is set in this build", Toast.LENGTH_LONG).show();
+            return;
+        }
         Toast.makeText(context, "Checking for updates…", Toast.LENGTH_SHORT).show();
         new Thread(new UpdateChecker(context, true)).start();
     }
@@ -202,7 +207,7 @@ public final class UpdateChecker implements Runnable {
                     }
                 });
             } else if (manual) {
-                ui.post(() -> toast("FeurStagram is up to date (" + installed + ")"));
+                ui.post(() -> toast(Brand.APP_NAME + " is up to date (" + installed + ")"));
             }
         } catch (Throwable t) {
             // Network/parse failures are non-fatal: silent for auto checks,
@@ -239,7 +244,7 @@ public final class UpdateChecker implements Runnable {
     /** True when this is the side-by-side clone package (asset name ends in -clone.apk). */
     private boolean isCloneBuild() {
         String pkg = context.getPackageName();
-        return pkg != null && pkg.endsWith(".feurstagram");
+        return pkg != null && pkg.endsWith(Brand.CLONE_PACKAGE_SUFFIX);
     }
 
     /** Everything the prompt and the download need about the release on offer. */
@@ -370,7 +375,7 @@ public final class UpdateChecker implements Runnable {
         }
     }
 
-    /** "v434-0-0-44-74" -> "434.0.0.44.74" so it matches the installed versionName. */
+    /** "v434-0-0-44-74-2" -> "434.0.0.44.74.2" so it matches the installed version. */
     static String normalize(String tag) {
         if (tag == null) return "";
         String value = tag.trim();
@@ -398,7 +403,10 @@ public final class UpdateChecker implements Runnable {
     private static String realInstalledVersion(Context context) {
         try {
             PackageManager pm = context.getPackageManager();
-            return pm.getPackageInfo(context.getPackageName(), 0).versionName;
+            String instagram = pm.getPackageInfo(context.getPackageName(), 0).versionName;
+            // This fork's revision rides on Instagram's version, so tags and
+            // comparisons cover rebuilds of the same Instagram base (see Brand.REVISION).
+            return instagram == null ? null : instagram + "." + Brand.REVISION;
         } catch (Throwable t) {
             return null;
         }
@@ -436,7 +444,7 @@ public final class UpdateChecker implements Runnable {
      * about being nagged to update, not about being told what an update did.
      */
     public static void checkWhatsNew(final Context context) {
-        if (context == null || whatsNewChecked) return;
+        if (context == null || whatsNewChecked || !Brand.hasUpdateRepo()) return;
         whatsNewChecked = true;
         final String installed = realInstalledVersion(context);
         if (installed == null) return;
@@ -861,7 +869,7 @@ public final class UpdateChecker implements Runnable {
                 if (manager == null) return;
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                     NotificationChannel channel = new NotificationChannel(CHANNEL_ID,
-                            "Feurstagram updates", NotificationManager.IMPORTANCE_LOW);
+                            Brand.APP_NAME + " updates", NotificationManager.IMPORTANCE_LOW);
                     channel.setShowBadge(false);
                     manager.createNotificationChannel(channel);
                 }

@@ -49,7 +49,7 @@ import java.util.List;
  * group's outer corners are round and the joints between rows are nearly square,
  * pill-shaped buttons, sentence-case section labels, and a tight-tracked headline.
  * This class also owns the palette, type and shape helpers the other Feurstagram
- * surfaces ({@link UpdateChecker}, {@link Onboarding}) draw with, so the design
+ * surfaces ({@link UpdateChecker}) draw with, so the design
  * only lives in one place.
  *
  * <h3>Fitting any screen</h3>
@@ -113,10 +113,7 @@ public final class Settings {
         tabBar.getViewTreeObserver().addOnGlobalLayoutListener(new HomeTabWatcher(tabBar));
         Hiders.installAll(tabBar);
         Context activity = getActivityContext(tabBar);
-        // The follow card comes first after an install or update, then the card
-        // presenting Quoicouview mode; "What's new" waits until both are dismissed.
-        FollowPrompt.maybeShow(activity, () ->
-                QuoicouviewIntro.maybeShow(activity, () -> UpdateChecker.checkWhatsNew(activity)));
+        UpdateChecker.checkWhatsNew(activity);
         UpdateChecker.check(activity);
     }
 
@@ -167,7 +164,7 @@ public final class Settings {
             styleWindow(dialog, Color.TRANSPARENT, 0f);
             dialog.show();
         } catch (Throwable t) {
-            Toast.makeText(context, "Feurstagram settings unavailable here", Toast.LENGTH_LONG).show();
+            Toast.makeText(context, Brand.APP_NAME + " settings unavailable here", Toast.LENGTH_LONG).show();
         }
     }
 
@@ -482,7 +479,7 @@ public final class Settings {
         void showOverview(boolean animate) {
             dialog.onBack = null;
             back.setVisibility(View.GONE);
-            title.setText("Feurstagram");
+            title.setText(Brand.APP_NAME);
             subtitle.setText(hardcore
                     ? "Permanent lock is on. You can tighten blocks but not loosen them. "
                             + "Reinstall to fully unlock."
@@ -638,7 +635,7 @@ public final class Settings {
                         Settings::buildDisplay));
         addSectionRow(context, app, "download", "Updates",
                 Config.isAutoUpdateEnabled() ? "Automatic check on" : "Automatic check off",
-                () -> pages.open("Updates", "Keep Feurstagram current.", Settings::buildUpdates));
+                () -> pages.open("Updates", "Keep " + Brand.APP_NAME + " current.", Settings::buildUpdates));
         addSectionRow(context, app, "heart", "Support", "Help keep the project going",
                 () -> pages.open("Support", "Feurstagram is free and open source.", Settings::buildSupport));
         sealGroup(context, app);
@@ -743,7 +740,6 @@ public final class Settings {
 
     private static void buildDisplay(Context context, LinearLayout column) {
         LinearLayout display = addGroup(context, column);
-        addRow(context, display, "Force dark (disable HDR)", "force_sdr", Config.isForceSdr());
         addRow(context, display, "Instagram popups", "hide_toasts", Config.arePopupsHidden());
         sealGroup(context, display);
     }
@@ -770,9 +766,7 @@ public final class Settings {
     }
 
     private static String displaySummary() {
-        String dark = Config.isForceSdr() ? "Force dark on" : "Force dark off";
-        String popups = Config.arePopupsHidden() ? "popups hidden" : "popups shown";
-        return dark + ", " + popups;
+        return Config.arePopupsHidden() ? "Popups hidden" : "Popups shown";
     }
 
     private static String landingLabel(String value) {
@@ -985,7 +979,7 @@ public final class Settings {
             return;
         }
         showConfirm(context, "Restart Instagram?",
-                "Feurstagram will clear the cache and restart the app to apply your changes.",
+                Brand.APP_NAME + " will clear the cache and restart the app to apply your changes.",
                 "Restart", PRIMARY, ON_PRIMARY,
                 () -> CacheCleaner.clearAndRestart(context));
     }
@@ -998,7 +992,8 @@ public final class Settings {
         }
         showConfirm(context, "Enable permanent lock?",
                 "This is permanent for this installation. You will no longer be able to "
-                        + "re-enable Home feed, Explore, Reels or Stories without reinstalling the app.",
+                        + "re-enable Home feed, Explore, Reels or Stories, or turn Quoicouview mode "
+                        + "off once it is on, without reinstalling the app.",
                 "Enable lock", ERROR, ON_ERROR,
                 () -> {
                     Config.enableHardcoreMode();
@@ -1271,7 +1266,6 @@ public final class Settings {
         if (key.equals("block_ads")) return "Block sponsored ads across Instagram.";
         if (key.equals("limit_following_feed")) return "Show only accounts you follow (needs the feed unblocked).";
         if (key.equals("hide_toasts")) return "Hide every Instagram popup, including “couldn’t refresh feed”.";
-        if (key.equals("force_sdr")) return "Keep blacks deep by stopping Instagram forcing HDR on the UI.";
         if (key.equals("block_friends_lane")) return "Hide the Friends tab and its avatars in the Reels header.";
         if (key.equals("block_notifications")) return "Hide the notifications (heart) button in the feed header.";
         if (key.equals("quoicouview_mode")) {

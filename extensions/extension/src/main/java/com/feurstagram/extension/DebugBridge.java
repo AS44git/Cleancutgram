@@ -41,7 +41,6 @@ import java.util.Map;
  * adb shell am broadcast -p com.instagram.android -a com.feurstagram.debug.TRACE --ez value true
  * adb shell am broadcast -p com.instagram.android -a com.feurstagram.debug.UPDATE
  * adb shell am broadcast -p com.instagram.android -a com.feurstagram.debug.WHATSNEW
- * adb shell am broadcast -p com.instagram.android -a com.feurstagram.debug.INTRO
  * adb shell am broadcast -p com.instagram.android -a com.feurstagram.debug.RESET
  * adb shell am broadcast -p com.instagram.android -a com.feurstagram.debug.RESTART
  * </pre>
@@ -62,7 +61,7 @@ public final class DebugBridge {
 
     private static final String[] ACTIONS = {
             "SET", "GET", "REMOVE", "DUMP", "NAV", "TRACE", "UPDATE", "WHATSNEW", "RESET", "RESTART", "SETTINGS", "PING",
-            "TREE", "INTRO", "CLICK", "TOUCH", "FIELDS",
+            "TREE", "CLICK", "TOUCH", "FIELDS",
     };
 
     private static boolean sInstalled;
@@ -176,8 +175,6 @@ public final class DebugBridge {
                 return update();
             case "WHATSNEW":
                 return whatsNew();
-            case "INTRO":
-                return intro();
             case "TRACE":
                 sNetworkTrace = intent.getBooleanExtra("value", !sNetworkTrace);
                 return "network trace " + (sNetworkTrace ? "on (logcat -s FeurNet:I)" : "off");
@@ -640,17 +637,6 @@ public final class DebugBridge {
      * only fires when the installed version changes, which can't be staged on a
      * device, so this drives the same card straight from the newest release.
      */
-    /** Show the card presenting Quoicouview mode, whether or not it is due. */
-    private static String intro() {
-        ViewGroup tabBar = sTabBar.get();
-        if (tabBar == null) return "ERROR no tab bar (open the app first)";
-        tabBar.post(() -> {
-            Context activity = Settings.getActivityContext(tabBar);
-            if (activity != null) QuoicouviewIntro.showNow(activity);
-        });
-        return "showing the Quoicouview card";
-    }
-
     private static String whatsNew() {
         ViewGroup tabBar = sTabBar.get();
         if (tabBar == null) return "ERROR no tab bar (open the app first)";
