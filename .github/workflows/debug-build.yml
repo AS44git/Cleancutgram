@@ -25,7 +25,9 @@ on:
         default: "v1.20.0"
 
 permissions:
-  contents: read
+  # write: draft releases (where the stock APK is kept) are only listed to
+  # tokens with push access. This workflow does not publish anything.
+  contents: write
   packages: read
 
 jobs:
