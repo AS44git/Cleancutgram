@@ -4,10 +4,11 @@
 # Run it from the repository's Actions tab ("Build and release" -> Run workflow).
 #
 # One-time setup (Settings -> Secrets and variables -> Actions):
-#   KEYSTORE_BASE64    your signing keystore (cleancutgram.keystore, key alias
-#                      "cleancutgram"), base64-encoded
-#                      (PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes("cleancutgram.keystore")))
+#   KEYSTORE_BASE64    your signing keystore, base64-encoded (the same one CleancutTok and
+#                      CleancutYt use)
+#                      (PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes("cleancut.keystore")))
 #   KEYSTORE_PASS      the keystore password
+#   KEY_ALIAS          the key's alias (optional: the keystore's first key is used)
 #   KEY_PASS           the key password (optional, defaults to KEYSTORE_PASS)
 #   GPR_TOKEN          a classic GitHub token with the read:packages scope, for the
 #                      Morphe patcher on GitHub Packages (optional: the workflow's
@@ -80,12 +81,22 @@ jobs:
       - name: Restore the signing keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           if [ -z "$KEYSTORE_BASE64" ]; then
             echo "::error::KEYSTORE_BASE64 is not set. Releases must be signed with your own keystore."
             exit 1
           fi
           echo "$KEYSTORE_BASE64" | base64 -d > feurstagram.keystore
+          alias="$KEY_ALIAS"
+          if [ -z "$alias" ]; then
+            alias="$(keytool -list -v -keystore feurstagram.keystore -storepass "$KEYSTORE_PASS" \
+              | sed -n 's/^Alias name: //p' | head -1)"
+          fi
+          if [ -z "$alias" ]; then echo "::error::No key found in the keystore (is KEYSTORE_PASS right?)"; exit 1; fi
+          echo "signing with key alias: $alias"
+          echo "KEY_ALIAS_RESOLVED=$alias" >> "$GITHUB_ENV"
 
       - name: Build the classic and clone APKs
         env:
@@ -93,7 +104,7 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           FEURSTAGRAM_KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
           FEURSTAGRAM_KEY_PASS: ${{ secrets.KEY_PASS }}
-          FEURSTAGRAM_KEY_ALIAS: cleancutgram
+          FEURSTAGRAM_KEY_ALIAS: ${{ env.KEY_ALIAS_RESOLVED }}
         run: |
           chmod +x build.sh gradlew
           mkdir -p dist
